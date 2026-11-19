@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>우봉고 · 솔로 타임어택</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/Draggable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+:root{
+  --sand:#f6e3b4; --sand-2:#ecd08e; --cream:#fff6e0;
+  --earth:#6b3417; --earth-2:#4a220e; --earth-3:#2e1407;
+  --sun:#f39a2b; --sun-2:#e0661c; --clay:#b8401c; --leaf:#5f7f2a;
+  --ink:#2a1306;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overscroll-behavior:none}
+body{
+  font-family:'Noto Sans KR',system-ui,sans-serif;color:var(--cream);
+  background:linear-gradient(180deg,#f7b34a 0%,#ec7f26 28%,#c24d1a 55%,#6e2a10 80%,#2e1407 100%) fixed;
+  min-height:100dvh;overflow-x:hidden;user-select:none;-webkit-user-select:none;
+}
+/* 사바나 배경 */
+#savanna{position:fixed;inset:auto 0 0 0;height:46vh;pointer-events:none;z-index:0;opacity:.55}
+.screen{position:relative;z-index:1;display:none;min-height:100dvh;padding:max(12px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom))}
+.screen.active{display:flex;flex-direction:column;align-items:center}
+.zigzag{height:12px;width:100%;
+  background:
+   linear-gradient(135deg,var(--earth-2) 25%,transparent 25%) -12px 0/24px 24px,
+   linear-gradient(225deg,var(--earth-2) 25%,transparent 25%) -12px 0/24px 24px,
+   var(--sun);}
+.dots{height:8px;width:100%;background:radial-gradient(circle,var(--cream) 2px,transparent 2.5px) 0 0/16px 8px}
+
+/* ---------- 홈 ---------- */
+.title-wrap{text-align:center;margin:18px 0 10px}
+.logo{font-family:'Black Han Sans',sans-serif;font-size:clamp(52px,16vw,84px);line-height:1;letter-spacing:2px;color:var(--cream);
+  text-shadow:0 4px 0 var(--clay),0 8px 0 var(--earth-2),0 12px 18px rgba(0,0,0,.35)}
+.logo-en{font-family:'Black Han Sans',sans-serif;letter-spacing:10px;font-size:15px;color:var(--earth-3);margin-top:12px;opacity:.85}
+.panel{width:min(440px,100%);background:rgba(46,20,7,.72);border-radius:18px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 2px rgba(255,246,224,.08);backdrop-filter:blur(4px)}
+.panel-body{padding:16px 16px 18px}
+.label{font-size:13px;font-weight:700;color:var(--sand-2);margin:14px 2px 8px;letter-spacing:.5px}
+.label:first-child{margin-top:2px}
+.seg{display:flex;gap:6px;background:rgba(0,0,0,.25);padding:5px;border-radius:12px}
+.seg button{flex:1;border:0;border-radius:9px;padding:11px 4px;font:700 15px 'Noto Sans KR';color:var(--sand);background:transparent;cursor:pointer;transition:.15s}
+.seg button small{display:block;font-weight:400;font-size:11px;opacity:.75;margin-top:2px}
+.seg button.on{background:linear-gradient(180deg,var(--sun),var(--sun-2));color:var(--ink);box-shadow:0 3px 0 var(--clay)}
+.best-box{margin-top:16px;padding:12px 14px;border-radius:12px;background:rgba(246,227,180,.1);border:1px dashed rgba(246,227,180,.35);font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.best-box b{font-family:'Black Han Sans';font-size:22px;color:var(--sun);font-weight:400}
+.btn-main{display:block;width:100%;margin-top:16px;border:0;border-radius:14px;padding:16px;font:400 26px 'Black Han Sans';letter-spacing:2px;color:var(--ink);cursor:pointer;
+  background:linear-gradient(180deg,#ffd27a,var(--sun));box-shadow:0 6px 0 var(--clay),0 10px 18px rgba(0,0,0,.3);transition:transform .08s}
+.btn-main:active{transform:translateY(4px);box-shadow:0 2px 0 var(--clay)}
+details.howto{margin-top:14px;font-size:13.5px;line-height:1.7;color:var(--sand)}
+details.howto summary{cursor:pointer;font-weight:700;color:var(--sand-2)}
+details.howto ul{margin:8px 0 0;padding-left:18px}
+.foot{font-size:11px;opacity:.55;margin-top:14px;text-align:center;color:var(--sand)}
+.version{margin-top:auto;padding-top:14px;font-size:11px;letter-spacing:1px;color:var(--sand);opacity:.6;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ---------- 게임 ---------- */
+#game{padding-left:8px;padding-right:8px}
+.hud{width:min(560px,100%);display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:rgba(46,20,7,.78);border-radius:14px;padding:8px 10px;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+.hud .info{font-size:12px;line-height:1.35;color:var(--sand-2);min-width:76px}
+.hud .info b{display:block;font-size:26px;line-height:1.1;font-weight:900;color:#4fb8ff;text-shadow:0 2px 0 #0b3a63,0 0 10px rgba(79,184,255,.45);font-variant-numeric:tabular-nums}
+#timer{font-family:'Black Han Sans';font-size:34px;letter-spacing:1px;color:var(--cream);font-variant-numeric:tabular-nums;text-shadow:0 2px 0 var(--clay)}
+#timer.warn{color:#ff6a4a}
+.icon-btn{border:0;background:rgba(246,227,180,.12);color:var(--cream);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer}
+.hud .right{display:flex;gap:6px}
+#stage{position:relative;width:min(560px,100%);margin-top:10px;flex:0 0 auto;touch-action:none}
+#board{position:absolute;left:0;top:0}
+#board .tablet{position:absolute;border-radius:14px;
+  background:
+   radial-gradient(circle at 20% 20%,rgba(255,255,255,.06),transparent 50%),
+   repeating-linear-gradient(45deg,rgba(0,0,0,.08) 0 6px,transparent 6px 12px),
+   linear-gradient(180deg,#8a4520,#5d2a10);
+  box-shadow:0 8px 0 var(--earth-3),0 14px 24px rgba(0,0,0,.4),inset 0 0 0 3px rgba(246,227,180,.15)}
+#board .tablet::before{content:"";position:absolute;left:10px;right:10px;top:6px;height:8px;border-radius:4px;opacity:.45;
+  background:linear-gradient(135deg,var(--sand) 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,var(--sand) 25%,transparent 25%) -8px 0/16px 16px}
+#board .tablet::after{content:"";position:absolute;left:10px;right:10px;bottom:6px;height:8px;border-radius:4px;opacity:.45;
+  background:linear-gradient(135deg,var(--sand) 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,var(--sand) 25%,transparent 25%) -8px 0/16px 16px}
+#board svg{position:absolute;overflow:visible}
+#trayLabel{position:absolute;left:0;right:0;text-align:center;font-size:12px;color:var(--sand);opacity:.7;letter-spacing:1px}
+.piece{position:absolute;left:0;top:0;cursor:grab;will-change:transform}
+.piece .inner{position:absolute;left:0;top:0}
+.piece svg{display:block;overflow:visible;filter:drop-shadow(0 3px 0 rgba(0,0,0,.35))}
+.piece.selected svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px #fff6c8) drop-shadow(0 3px 0 rgba(0,0,0,.35))}
+.piece.floating svg{opacity:.82;filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 5px rgba(255,90,60,.9)) drop-shadow(0 3px 0 rgba(0,0,0,.35))}
+.piece.dragging svg{filter:drop-shadow(0 12px 10px rgba(0,0,0,.45))}
+.controls{width:min(560px,100%);display:flex;gap:8px;margin-top:auto;padding-top:12px}
+.controls button{flex:1;border:0;border-radius:12px;padding:13px 4px;font:700 15px 'Noto Sans KR';cursor:pointer;color:var(--ink);
+  background:linear-gradient(180deg,var(--sand),var(--sand-2));box-shadow:0 4px 0 #a9813f}
+.controls button:active{transform:translateY(3px);box-shadow:0 1px 0 #a9813f}
+.controls button.pass{background:linear-gradient(180deg,#e9876a,var(--clay));color:var(--cream);box-shadow:0 4px 0 #6e220c}
+.controls button small{display:block;font-weight:400;font-size:11px;opacity:.8}
+#shout{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:'Black Han Sans';font-size:clamp(56px,17vw,96px);color:var(--cream);
+  text-shadow:0 5px 0 var(--clay),0 10px 0 var(--earth-2),0 16px 26px rgba(0,0,0,.45);pointer-events:none;z-index:50;opacity:0;white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(46,20,7,.92);padding:9px 16px;border-radius:20px;font-size:14px;z-index:60;opacity:0;pointer-events:none;white-space:nowrap}
+#countdown{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70;background:rgba(46,20,7,.55)}
+#countdown span{font-family:'Black Han Sans';font-size:120px;color:var(--cream);text-shadow:0 6px 0 var(--clay)}
+#quitModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:80;padding:20px;
+  background:rgba(30,12,4,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#quitModal .panel{width:min(340px,100%)}
+#quitModal .q-title{font-family:'Black Han Sans';font-size:30px;text-align:center;color:var(--cream);text-shadow:0 3px 0 var(--clay);margin-top:4px}
+#quitModal .q-text{text-align:center;font-size:14px;line-height:1.6;color:var(--sand);margin:10px 0 2px}
+#quitModal .btn-main{font-size:21px;padding:13px}
+
+/* ---------- 결과 ---------- */
+.result-big{font-family:'Black Han Sans';font-size:54px;color:var(--sun);text-align:center;line-height:1.1;text-shadow:0 4px 0 var(--earth-3)}
+.result-sub{text-align:center;color:var(--sand);font-size:14px;margin-top:4px}
+.newbest{display:none;margin:10px auto 0;width:max-content;background:var(--clay);color:var(--cream);font-weight:900;padding:5px 14px;border-radius:20px;font-size:14px;box-shadow:0 3px 0 var(--earth-3)}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px}
+.stat{background:rgba(246,227,180,.1);border-radius:10px;padding:10px 6px;text-align:center;font-size:12px;color:var(--sand-2)}
+.stat b{display:block;font-size:19px;color:var(--cream);margin-top:2px;font-variant-numeric:tabular-nums}
+.splits{margin-top:14px;max-height:150px;overflow:auto;font-size:13px;color:var(--sand);display:flex;flex-wrap:wrap;gap:6px}
+.splits span{background:rgba(0,0,0,.25);padding:4px 8px;border-radius:8px;font-variant-numeric:tabular-nums}
+.splits span.p{color:#ff9a7a}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn-main{font-size:20px}
+.btn-sub{background:linear-gradient(180deg,var(--sand),var(--sand-2))!important;box-shadow:0 6px 0 #a9813f!important}
+</style>
+</head>
+<body>
+
+<!-- 사바나 실루엣 배경 -->
+<svg id="savanna" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+  <circle cx="300" cy="96" r="54" fill="#ffd27a" opacity=".55"/>
+  <path d="M0 150 Q100 132 200 146 T400 140 V200 H0Z" fill="#3a1909"/>
+  <g fill="#2a1206">
+    <rect x="78" y="96" width="5" height="56"/>
+    <path d="M80 100 L60 84 M80 102 L100 82" stroke="#2a1206" stroke-width="4"/>
+    <ellipse cx="80" cy="80" rx="46" ry="9"/>
+    <ellipse cx="66" cy="74" rx="22" ry="6"/>
+    <ellipse cx="96" cy="73" rx="20" ry="6"/>
+    <rect x="336" y="118" width="3.5" height="30"/>
+    <ellipse cx="338" cy="114" rx="26" ry="5.5"/>
+    <path d="M150 146 l4 -14 3 4 2 -8 3 18z M240 144 l3 -10 2 3 2 -6 3 13z"/>
+  </g>
+</svg>
+
+<!-- 홈 -->
+<section id="home" class="screen active">
+  <div class="title-wrap">
+    <div class="logo">우봉고</div>
+    <div class="logo-en">SOLO TIME ATTACK</div>
+  </div>
+  <div class="panel">
+    <div class="zigzag"></div>
+    <div class="panel-body">
+      <div class="label">모드</div>
+      <div class="seg" id="segMode">
+        <button data-v="time" class="on">⏱ 제한시간<small>시간 안에 많이 풀기</small></button>
+        <button data-v="count">🏁 스피드런<small>정해진 문제 빨리 풀기</small></button>
+      </div>
+      <div class="label" id="setLabel">제한 시간</div>
+      <div class="seg" id="segSet"></div>
+      <div class="label">난이도</div>
+      <div class="seg" id="segDiff">
+        <button data-v="easy" class="on">쉬움<small>조각 3개</small></button>
+        <button data-v="hard">어려움<small>조각 4개</small></button>
+        <button data-v="mix">섞기<small>3~4개</small></button>
+      </div>
+      <div class="best-box"><span>🏆 최고 기록</span><b id="bestHome">-</b></div>
+      <button class="btn-main" id="btnStart">시작!</button>
+      <details class="howto">
+        <summary>게임 방법</summary>
+        <ul>
+          <li>아래 조각을 <b>모두</b> 사용해 판의 모래색 칸을 빈틈없이 채우세요.</li>
+          <li><b>드래그</b>로 조각을 옮기고, <b>탭</b>하면 90° 회전해요.</li>
+          <li>조각을 든 채로 <b>좌우로 빠르게 한 번 흔들면</b> 좌우 뒤집기, <b>위아래로 흔들면</b> 상하 뒤집기!</li>
+          <li><b>뒤집기</b> 버튼(PC는 우클릭, F키)으로 좌우를 뒤집어요. R키는 회전.</li>
+          <li>막히면 <b>패스</b>: 10초 페널티가 붙어요.</li>
+        </ul>
+      </details>
+    </div>
+    <div class="dots"></div>
+  </div>
+  <div class="foot">원작: Ubongo · Grzegorz Rejchtman · KOSMOS — 개인 학습용 팬메이드</div>
+  <div class="version"></div>
+</section>
+
+<!-- 게임 -->
+<section id="game" class="screen">
+  <div class="hud">
+    <div class="info" id="hudLeft">문제<b>1</b></div>
+    <div id="timer">0:00</div>
+    <div class="right">
+      <button class="icon-btn" id="btnSound" title="소리">🔊</button>
+      <button class="icon-btn" id="btnQuit" title="그만하기">✕</button>
+    </div>
+  </div>
+  <div id="stage">
+    <div id="board"></div>
+    <div id="trayLabel">▼ 이 조각들을 모두 사용하세요</div>
+  </div>
+  <div class="controls">
+    <button id="btnRot">⟳ 회전<small>탭 / R</small></button>
+    <button id="btnFlip">⇋ 뒤집기<small>흔들기 / F</small></button>
+    <button id="btnPass" class="pass">패스<small>+10초</small></button>
+  </div>
+</section>
+
+<!-- 결과 -->
+<section id="result" class="screen">
+  <div class="title-wrap"><div class="logo" style="font-size:56px">완료!</div></div>
+  <div class="panel">
+    <div class="zigzag"></div>
+    <div class="panel-body">
+      <div class="result-sub" id="resMode"></div>
+      <div class="result-big" id="resMain">-</div>
+      <div class="newbest" id="resNew">🏆 신기록!</div>
+      <div class="stats">
+        <div class="stat">최고 기록<b id="resBest">-</b></div>
+        <div class="stat">평균 풀이<b id="resAvg">-</b></div>
+        <div class="stat">패스<b id="resPass">0</b></div>
+      </div>
+      <div class="label">문제별 기록</div>
+      <div class="splits" id="resSplits"></div>
+      <div class="btn-row">
+        <button class="btn-main btn-sub" id="btnMenu">메뉴</button>
+        <button class="btn-main" id="btnAgain">다시 하기</button>
+      </div>
+    </div>
+    <div class="dots"></div>
+  </div>
+  <div class="version"></div>
+</section>
+
+<div id="shout">우봉고!</div>
+<div id="toast"></div>
+<div id="countdown"><span>3</span></div>
+<div id="quitModal" role="dialog" aria-modal="true">
+  <div class="panel">
+    <div class="zigzag"></div>
+    <div class="panel-body">
+      <div class="q-title">게임 포기</div>
+      <div class="q-text">게임을 포기하고 메인으로 돌아갈까요?<br><small>이번 기록은 저장되지 않아요. (확인하는 동안 시간은 멈춰요)</small></div>
+      <div class="btn-row">
+        <button class="btn-main btn-sub" id="btnQuitNo">아니오</button>
+        <button class="btn-main" id="btnQuitYes">예</button>
+      </div>
+    </div>
+    <div class="dots"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   1. 원작 우봉고 조각 12종 (A~L)
+   ========================================================= */
+const PIECE_DEFS = {
+  A:{color:'#a458a3', rows:['#','#']},                 // 도미노
+  B:{color:'#2da2e2', rows:['#','#','#']},             // 일자 3칸
+  C:{color:'#20abb5', rows:['#.','##']},               // ㄱ자 3칸
+  D:{color:'#decc28', rows:['.#','##','.#']},          // T 4칸
+  E:{color:'#9bb542', rows:['##','.#','.#']},          // L 4칸
+  F:{color:'#9f7546', rows:['#','#','#','#']},         // 일자 4칸
+  G:{color:'#3a8bce', rows:['#.','##','.#']},          // S 4칸
+  H:{color:'#e15236', rows:['##','##']},               // 정사각 4칸
+  I:{color:'#dc7d24', rows:['.#','##','.#','.#']},     // Y 5칸
+  J:{color:'#c84f9a', rows:['.#','.#','.#','##']},     // L 5칸
+  K:{color:'#349b57', rows:['##','##','.#']},          // P 5칸
+  L:{color:'#e6b625', rows:['##.','.#.','.##']},       // Z 5칸
+};
+const VERSION = 'v0.5 2026-11-19';
+document.querySelectorAll('.version').forEach(e=>e.textContent=VERSION);
+const IDS = Object.keys(PIECE_DEFS);
+if(window.gsap){ gsap.registerPlugin(Draggable); gsap.defaults({overwrite:'auto'}); }
+
+/* ---------- 좌표 도우미 ---------- */
+const norm = cs => {
+  const mx = Math.min(...cs.map(c=>c[0])), my = Math.min(...cs.map(c=>c[1]));
+  return cs.map(([x,y])=>[x-mx,y-my]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+};
+const rotCW = cs => norm(cs.map(([x,y])=>[-y,x]));
+const flipH = cs => norm(cs.map(([x,y])=>[-x,y]));
+const rotCCW = cs => norm(cs.map(([x,y])=>[y,-x]));
+const flipV = cs => norm(cs.map(([x,y])=>[x,-y]));
+const TRANSFORMS = {
+  rot:   {fn:rotCW,  from:{rotation:-90}},
+  rotccw:{fn:rotCCW, from:{rotation:90}},
+  flip:  {fn:flipH,  from:{scaleX:-1}},
+  flipv: {fn:flipV,  from:{scaleY:-1}},
+};
+const keyOf = cs => cs.map(c=>c.join(',')).join(';');
+const dims = cs => ({w:Math.max(...cs.map(c=>c[0]))+1, h:Math.max(...cs.map(c=>c[1]))+1});
+function parseRows(rows){const out=[];rows.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='#')out.push([x,y])}));return norm(out);}
+function orientations(cs){
+  const seen=new Map(); let c=cs;
+  for(let f=0;f<2;f++){ for(let r=0;r<4;r++){ seen.set(keyOf(c),c); c=rotCW(c);} c=flipH(c); }
+  return [...seen.values()];
+}
+const PIECES = {};
+IDS.forEach(id=>{const cells=parseRows(PIECE_DEFS[id].rows); PIECES[id]={id,color:PIECE_DEFS[id].color,cells,orients:orientations(cells),size:cells.length};});
+
+const rand = n => Math.floor(Math.random()*n);
+const pick = a => a[rand(a.length)];
+const shuffle = a => {a=a.slice();for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+/* =========================================================
+   2. 문제 생성기 — 조각을 실제로 이어 붙여 만들기 때문에
+      항상 해답이 있는 문제만 나온다
+   ========================================================= */
+function hasHole(set,w,h){
+  const seen=new Set(), q=[];
+  for(let x=-1;x<=w;x++){q.push([x,-1],[x,h]);} for(let y=0;y<h;y++){q.push([-1,y],[w,y]);}
+  q.forEach(p=>seen.add(p.join(',')));
+  while(q.length){
+    const [x,y]=q.pop();
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy, k=nx+','+ny;
+      if(nx<-1||ny<-1||nx>w||ny>h||seen.has(k)||set.has(k)) continue;
+      seen.add(k); q.push([nx,ny]);
+    }
+  }
+  return ((w+2)*(h+2) - set.size - seen.size) > 0;
+}
+function shapeStats(set){
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9,edges=0;
+  for(const k of set){const [x,y]=k.split(',').map(Number);
+    minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if(!set.has((x+dx)+','+(y+dy))) edges++;}
+  return {w:maxX-minX+1,h:maxY-minY+1,minX,minY,edges};
+}
+function generatePuzzle(k){
+  const lim = k===3 ? {w:6,h:4} : {w:6,h:5};
+  let best=null;
+  for(let attempt=0; attempt<160; attempt++){
+    const ids = shuffle(IDS).slice(0,k);
+    const set = new Set(); const sol=[];
+    const first = pick(PIECES[ids[0]].orients);
+    first.forEach(([x,y])=>set.add(x+','+y)); sol.push({id:ids[0],cells:first,dx:0,dy:0});
+    let fail=false;
+    for(let i=1;i<k;i++){
+      const id=ids[i]; const cands=[];
+      const frontier=[];
+      for(const kk of set){const [x,y]=kk.split(',').map(Number);
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nk=(x+dx)+','+(y+dy); if(!set.has(nk)) frontier.push([x+dx,y+dy]);}}
+      const tried=new Set();
+      for(const o of PIECES[id].orients){
+        for(const [fx,fy] of frontier){ for(const [cx,cy] of o){
+          const ox=fx-cx, oy=fy-cy, tk=keyOf(o)+'@'+ox+','+oy;
+          if(tried.has(tk)) continue; tried.add(tk);
+          if(o.some(([x,y])=>set.has((x+ox)+','+(y+oy)))) continue;
+          const ns=new Set(set); o.forEach(([x,y])=>ns.add((x+ox)+','+(y+oy)));
+          const st=shapeStats(ns);
+          if(st.w>lim.w+1 && st.h>lim.w+1) continue;
+          const over=Math.max(0,Math.min(st.w,st.h)-lim.h)+Math.max(0,Math.max(st.w,st.h)-lim.w);
+          cands.push({o,ox,oy,score:st.edges + st.w*st.h*0.35 + over*30 + Math.random()*3});
+        }}
+      }
+      if(!cands.length){fail=true;break;}
+      cands.sort((a,b)=>a.score-b.score);
+      const c=pick(cands.slice(0,Math.min(5,cands.length)));
+      c.o.forEach(([x,y])=>set.add((x+c.ox)+','+(y+c.oy)));
+      sol.push({id,cells:c.o,dx:c.ox,dy:c.oy});
+    }
+    if(fail) continue;
+    let st=shapeStats(set);
+    // 가로로 넓게 보이도록 (세로가 더 길면 90° 돌림)
+    let cells=[...set].map(s=>s.split(',').map(Number));
+    if(st.h>st.w){ cells=cells.map(([x,y])=>[-y,x]); }
+    cells=norm(cells);
+    const d=dims(cells);
+    if(d.w>lim.w||d.h>lim.h) continue;
+    const ns=new Set(cells.map(c=>c.join(',')));
+    if(hasHole(ns,d.w,d.h)) continue;
+    // 원작처럼 직사각형이 아닌 울퉁불퉁한 모양을 선호 (채움 비율 약 80%)
+    const fill = cells.length/(d.w*d.h);
+    const score = Math.abs(fill-0.8) + (fill===1?0.5:0) + Math.random()*0.08;
+    if(!best||score<best.score) best={cells,ids,w:d.w,h:d.h,score};
+    if(attempt>25 && best) break;
+  }
+  return best;
+}
+
+/* =========================================================
+   3. 효과음 (Web Audio로 직접 합성 — 파일 필요 없음)
+   ========================================================= */
+const SFX = {
+  ctx:null, on:true,
+  init(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f,d=.1,type='sine',v=.15,t0=0,slide=0){
+    if(!this.on||!this.ctx) return; const c=this.ctx, t=c.currentTime+t0;
+    const o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.setValueAtTime(f,t);
+    if(slide) o.frequency.exponentialRampToValueAtTime(f*slide,t+d);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v,t+.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+d+.02);
+  },
+  pick(){this.tone(520,.06,'triangle',.12)},
+  snap(){this.tone(180,.09,'square',.08,0,.6);this.tone(900,.05,'triangle',.08,.01)},
+  rot(){this.tone(660,.05,'triangle',.08,0,1.3)},
+  flip(){this.tone(440,.08,'triangle',.08,0,1.6)},
+  back(){this.tone(300,.12,'sine',.08,0,.7)},
+  tick(){this.tone(1200,.04,'square',.05)},
+  go(){this.tone(880,.25,'triangle',.15)},
+  count(){this.tone(440,.12,'triangle',.12)},
+  pass(){this.tone(260,.18,'sawtooth',.06,0,.6)},
+  win(){[523,659,784,1047].forEach((f,i)=>this.tone(f,.22,'triangle',.14,i*.07)); this.tone(196,.4,'sine',.12,0)},
+  end(){[784,659,523,392].forEach((f,i)=>this.tone(f,.3,'triangle',.13,i*.12))},
+};
+
+/* =========================================================
+   4. 기록 저장소 — 지금은 이 기기(localStorage)에 저장.
+      나중에 DB(Supabase 등)로 바꿀 때 이 객체만 교체하면 됨.
+   ========================================================= */
+const RecordStore = {
+  _key(cfg){ return `ubongo.best.${cfg.mode}.${cfg.setting}.${cfg.diff}`; },
+  _read(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
+  _write(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} },
+  better(cfg,a,b){ // a가 b보다 좋으면 true
+    if(!b) return true;
+    if(cfg.mode==='count') return a.timeMs < b.timeMs;
+    return a.solved > b.solved || (a.solved===b.solved && a.passes < b.passes);
+  },
+  async getBest(cfg){ return this._read(this._key(cfg)); },
+  async save(cfg,rec){
+    const k=this._key(cfg), prev=this._read(k), isBest=this.better(cfg,rec,prev);
+    if(isBest) this._write(k,rec);
+    const hk='ubongo.history', h=this._read(hk)||[]; h.unshift({...cfg,...rec}); this._write(hk,h.slice(0,50));
+    return {isBest, best:isBest?rec:prev};
+  },
+};
+
+/* =========================================================
+   5. 게임 상태 & 화면
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const cfg = {mode:'time', setting:5, diff:'easy'};
+const SETTINGS = {time:[5,10,20], count:[5,10,20]};
+const PENALTY = 10000;
+const G = { running:false, puzzle:null, pieces:[], target:new Set(), occ:new Map(), cell:44,
+  boardX:0, boardY:0, trayTop:0, selected:null, solved:0, passes:0, splits:[],
+  start:0, deadline:0, penalty:0, puzzleStart:0, raf:0, lastTickSec:-1, busy:false };
+
+const fmt = (ms,dec=false) => {
+  ms=Math.max(0,ms); const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, d=Math.floor(ms/100)%10;
+  return `${m}:${String(s).padStart(2,'0')}${dec?'.'+d:''}`;
+};
+const fmtSec = ms => (ms/1000).toFixed(1)+'초';
+function bestText(c,b){ if(!b) return '-'; return c.mode==='count' ? fmt(b.timeMs,true) : `${b.solved}문제`; }
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; gsap.killTweensOf(t); gsap.fromTo(t,{opacity:0,y:10},{opacity:1,y:0,duration:.2}); gsap.to(t,{opacity:0,delay:1.4,duration:.3}); }
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id)); }
+
+/* ---------- 홈 화면 설정 ---------- */
+function renderSettingSeg(){
+  const seg=$('#segSet'); seg.innerHTML='';
+  $('#setLabel').textContent = cfg.mode==='time' ? '제한 시간' : '문제 수';
+  SETTINGS[cfg.mode].forEach(v=>{
+    const b=document.createElement('button'); b.dataset.v=v;
+    b.textContent = cfg.mode==='time' ? `${v}분` : `${v}문제`;
+    if(v===cfg.setting) b.classList.add('on'); seg.appendChild(b);
+  });
+}
+async function refreshBest(){ $('#bestHome').textContent = bestText(cfg, await RecordStore.getBest(cfg)); }
+function bindSeg(sel,key,after){
+  $(sel).addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    cfg[key] = key==='setting' ? Number(b.dataset.v) : b.dataset.v;
+    [...$(sel).children].forEach(x=>x.classList.toggle('on',x===b));
+    SFX.init(); SFX.pick(); after&&after(); refreshBest();
+  });
+}
+bindSeg('#segMode','mode',()=>{ if(!SETTINGS[cfg.mode].includes(cfg.setting)) cfg.setting=SETTINGS[cfg.mode][0]; renderSettingSeg(); });
+bindSeg('#segSet','setting');
+bindSeg('#segDiff','diff');
+renderSettingSeg(); refreshBest();
+
+/* ---------- 조각 그리기 (SVG) ---------- */
+function pieceSVG(cells,color,c){
+  const {w,h}=dims(cells), set=new Set(cells.map(p=>p.join(',')));
+  let rects='', edges='';
+  cells.forEach(([x,y])=>{
+    rects+=`<rect x="${x*c}" y="${y*c}" width="${c}" height="${c}" fill="${color}"/>`;
+    rects+=`<rect x="${x*c+c*.18}" y="${y*c+c*.18}" width="${c*.64}" height="${c*.64}" rx="${c*.12}" fill="#fff" opacity=".13"/>`;
+    const L=x*c,T=y*c,R=L+c,B=T+c;
+    if(!set.has(`${x},${y-1}`)) edges+=`M${L} ${T}H${R}`;
+    if(!set.has(`${x},${y+1}`)) edges+=`M${L} ${B}H${R}`;
+    if(!set.has(`${x-1},${y}`)) edges+=`M${L} ${T}V${B}`;
+    if(!set.has(`${x+1},${y}`)) edges+=`M${R} ${T}V${B}`;
+  });
+  return `<svg width="${w*c}" height="${h*c}" viewBox="0 0 ${w*c} ${h*c}">${rects}<path d="${edges}" stroke="rgba(40,15,5,.75)" stroke-width="2.4" stroke-linecap="square" fill="none"/></svg>`;
+}
+function boardSVG(cells,c){
+  const set=new Set(cells.map(p=>p.join(',')));
+  let rects='', edges='', grid='';
+  cells.forEach(([x,y])=>{
+    rects+=`<rect x="${x*c}" y="${y*c}" width="${c}" height="${c}" fill="#f6e3b4"/>`;
+    grid+=`<rect x="${x*c+1.5}" y="${y*c+1.5}" width="${c-3}" height="${c-3}" fill="none" stroke="#d9b677" stroke-width="1" stroke-dasharray="3 3"/>`;
+    const L=x*c,T=y*c,R=L+c,B=T+c;
+    if(!set.has(`${x},${y-1}`)) edges+=`M${L} ${T}H${R}`;
+    if(!set.has(`${x},${y+1}`)) edges+=`M${L} ${B}H${R}`;
+    if(!set.has(`${x-1},${y}`)) edges+=`M${L} ${T}V${B}`;
+    if(!set.has(`${x+1},${y}`)) edges+=`M${R} ${T}V${B}`;
+  });
+  const {w,h}=dims(cells);
+  return `<svg width="${w*c}" height="${h*c}" viewBox="0 0 ${w*c} ${h*c}">${rects}${grid}<path d="${edges}" stroke="#2e1407" stroke-width="3" stroke-linecap="square" fill="none"/></svg>`;
+}
+
+/* ---------- 레이아웃 ----------
+   화면(가로·세로)에 판 + 조각 트레이 + 아래 버튼이 모두 들어가도록
+   칸 크기를 큰 값부터 줄여 가며 맞춘다 */
+function trayRows(pieces,c,W){
+  const gap=Math.round(c*.55), rows=[]; let row=[], rw=0;
+  pieces.forEach(p=>{ const {w}=dims(p.cells), pw=w*c;
+    if(row.length && rw+gap+pw > W-12){ rows.push({items:row,w:rw}); row=[]; rw=0; }
+    rw += (row.length?gap:0)+pw; row.push(p); });
+  if(row.length) rows.push({items:row,w:rw});
+  rows.forEach(r=>r.h=Math.max(...r.items.map(p=>dims(p.cells).h))*c);
+  const h = rows.reduce((a,r)=>a+r.h,0) + gap*Math.max(0,rows.length-1);
+  return {rows,h,gap};
+}
+function metrics(c,P){
+  const pad=Math.round(c*.45), boardY=pad+6;
+  const labelTop=boardY+P.h*c+pad+Math.round(c*.3);
+  const trayTop=labelTop+22;
+  return {pad,boardY,labelTop,trayTop};
+}
+function availableHeight(){
+  const st=$('#stage'), top=st.getBoundingClientRect().top+scrollY;
+  const ctrl=$('.controls').offsetHeight;
+  const padB=parseFloat(getComputedStyle($('#game')).paddingBottom)||14;
+  return innerHeight - top - ctrl - padB - 6;
+}
+function fitCell(){
+  const W=$('#stage').clientWidth||Math.min(560,innerWidth-16), P=G.puzzle;
+  const avail=availableHeight();
+  let c=Math.max(22, Math.min(58, Math.floor((W-16)/Math.max(8.2,P.w+2))));
+  for(; c>22; c--){
+    const m=metrics(c,P), t=trayRows(G.pieces,c,W);
+    if(m.trayTop + t.h <= avail) break;
+  }
+  return c;
+}
+function layout(animate=false,refit=true){
+  const st=$('#stage'), W=st.clientWidth, P=G.puzzle;
+  if(refit) G.cell=fitCell();
+  const c=G.cell, m=metrics(c,P);
+  G.boardX = Math.round((W - P.w*c)/2); G.boardY = m.boardY;
+  const pad=m.pad, board=$('#board');
+  board.innerHTML = `<div class="tablet" style="left:${G.boardX-pad}px;top:${G.boardY-pad}px;width:${P.w*c+pad*2}px;height:${P.h*c+pad*2}px"></div>`
+                  + `<div style="position:absolute;left:${G.boardX}px;top:${G.boardY}px">${boardSVG(P.cells,c)}</div>`;
+  $('#trayLabel').style.top = m.labelTop+'px';
+  G.trayTop = m.trayTop;
+  // 처음 제시된 조각 전부가 트레이에 있을 때의 높이를 예약 → 조각을 옮겨도 화면이 흔들리지 않음
+  G.trayReserve = trayRows(G.pieces,c,W).h;
+  G.pieces.forEach(p=>renderPiece(p));
+  layoutTray(animate);
+  G.pieces.filter(p=>p.placed||p.floating).forEach(p=>{ const g=p.placed||p.floating; gsap.killTweensOf(p.el,'x,y'); gsap.set(p.el,{x:G.boardX+g.gx*c, y:G.boardY+g.gy*c}); });
+}
+function layoutTray(animate=true){
+  const st=$('#stage'), W=st.clientWidth, c=G.cell;
+  const {rows,h,gap}=trayRows(G.pieces.filter(p=>!p.placed&&!p.floating),c,W);
+  let y=G.trayTop;
+  rows.forEach(r=>{
+    let x=Math.round((W-r.w)/2);
+    r.items.forEach(p=>{ const d=dims(p.cells);
+      p.home={x, y:y+Math.round((r.h-d.h*c)/2)};
+      if(p.dragging){ x+=d.w*c+gap; return; }   // 들고 있는 조각은 건드리지 않음
+      gsap.killTweensOf(p.el,'x,y');   // 이전 위치로 가던 애니메이션 취소
+      if(animate) gsap.to(p.el,{x:p.home.x,y:p.home.y,duration:.28,ease:'power2.out'}); else gsap.set(p.el,{x:p.home.x,y:p.home.y});
+      x+=d.w*c+gap; });
+    y+=r.h+gap;
+  });
+  st.style.height = (G.trayTop + Math.max(h, G.trayReserve||0) + 4)+'px';
+  // 조각을 세로로 돌려 트레이가 길어져서 아래 버튼이 밀려나면 → 칸 크기를 줄여 다시 맞춤
+  if(!G.refitting && G.trayTop + h > availableHeight() + 1){
+    G.refitting=true; layout(false,true); G.refitting=false;
+  }
+}
+function renderPiece(p){
+  if(p.dragging){ p.needRender=true; return; }
+  const c=G.cell;
+  p.inner.innerHTML = pieceSVG(p.cells, PIECES[p.id].color, c);
+  const {w,h}=dims(p.cells); p.el.style.width=w*c+'px'; p.el.style.height=h*c+'px';
+  p.inner.style.width=w*c+'px'; p.inner.style.height=h*c+'px';
+}
+
+/* ---------- 배치 판정 ---------- */
+function cellsAt(p,gx,gy){ return p.cells.map(([x,y])=>(x+gx)+','+(y+gy)); }
+function canPlace(p,gx,gy){ return cellsAt(p,gx,gy).every(k=>G.target.has(k) && (!G.occ.has(k)||G.occ.get(k)===p)); }
+function occupy(p,gx,gy){ cellsAt(p,gx,gy).forEach(k=>G.occ.set(k,p)); p.placed={gx,gy}; setFloating(p,null); }
+// 판 위에 있지만 칸에 맞지 않는 상태 (회전했는데 자리가 안 맞을 때) → 판 위에 그대로 두고 표시만 다르게
+function setFloating(p,g){ p.floating=g; p.el.classList.toggle('floating',!!g); }
+function unoccupy(p){ for(const [k,v] of [...G.occ]) if(v===p) G.occ.delete(k); p.placed=null; }
+
+function tryDrop(p,x,y){
+  const c=G.cell, fx=(x-G.boardX)/c, fy=(y-G.boardY)/c;
+  const opts=[];
+  for(const gx of [Math.floor(fx),Math.ceil(fx)]) for(const gy of [Math.floor(fy),Math.ceil(fy)])
+    opts.push({gx,gy,d:(gx-fx)**2+(gy-fy)**2});
+  opts.sort((a,b)=>a.d-b.d);
+  for(const o of opts){ if(o.d<0.55 && canPlace(p,o.gx,o.gy)){ placeAt(p,o.gx,o.gy); return; } }
+  sendHome(p, Math.abs(fy) < G.puzzle.h+0.5 && fy>-1.5);
+}
+function placeAt(p,gx,gy){
+  occupy(p,gx,gy); SFX.snap();
+  gsap.to(p.el,{x:G.boardX+gx*G.cell, y:G.boardY+gy*G.cell, duration:.16, ease:'back.out(2.5)'});
+  gsap.fromTo(p.inner,{scale:1.08},{scale:1,duration:.25,ease:'power2.out'});
+  layoutTray(true);
+  checkSolved();
+}
+function sendHome(p,wasNearBoard){
+  if(p.placed) unoccupy(p);
+  if(wasNearBoard) SFX.back();
+  layoutTray(true);
+}
+
+/* ---------- 흔들기 인식 ----------
+   조각을 든 채로 좌→우→좌(또는 우→좌→우)처럼 빠르게 한 번 왕복 → 좌우 뒤집기
+   위→아래→위(또는 아래→위→아래)로 빠르게 왕복 → 상하 뒤집기
+   들고 있는 상태 그대로 뒤집히므로 바로 판에 내려놓을 수 있다 */
+const SHAKE = { window:500, cooldown:350, hyst:6 };
+function axisTracker(v,t){ return {ext:v, extT:t, dir:0, legStart:v, legStartT:t, last:null}; }
+function axisUpdate(a,v,t){
+  if(a.dir===0){
+    if(Math.abs(v-a.ext)>=SHAKE.hyst){ a.dir=Math.sign(v-a.ext); a.legStart=a.ext; a.legStartT=a.extT; a.ext=v; a.extT=t; }
+    return;
+  }
+  if((v-a.ext)*a.dir>0){ a.ext=v; a.extT=t; return; }            // 같은 방향으로 계속
+  if(Math.abs(v-a.ext)>=SHAKE.hyst){                               // 방향 전환
+    a.last={len:Math.abs(a.ext-a.legStart), t0:a.legStartT};
+    a.legStart=a.ext; a.legStartT=a.extT; a.dir=-a.dir; a.ext=v; a.extT=t;
+  }
+}
+function shakeReset(p,x,y,t){ p.shake={x:axisTracker(x,t), y:axisTracker(y,t), samples:[{x,y,t}], until:p.shake?p.shake.until:0}; }
+function shakeCheck(p,x,y,t){
+  const S=p.shake; if(!S) return null;
+  S.samples.push({x,y,t}); while(S.samples.length && t-S.samples[0].t>SHAKE.window) S.samples.shift();
+  axisUpdate(S.x,x,t); axisUpdate(S.y,y,t);
+  if(t<S.until) return null;
+  const amp=Math.max(18, G.cell*0.6);
+  const range=k=>{ const vs=S.samples.map(q=>q[k]); return Math.max(...vs)-Math.min(...vs); };
+  for(const [k,other,kind] of [['x','y','flip'],['y','x','flipv']]){
+    const A=S[k];
+    if(!A.last || A.dir===0) continue;
+    const cur=Math.abs(A.ext-A.legStart);
+    if(A.last.len>=amp && cur>=amp*0.8 && t-A.last.t0<=SHAKE.window && range(other) <= Math.max(A.last.len,cur)*0.7){
+      S.until=t+SHAKE.cooldown; shakeReset(p,x,y,t); p.shake.until=t+SHAKE.cooldown;
+      return kind;
+    }
+  }
+  return null;
+}
+
+/* ---------- 회전 / 뒤집기 ---------- */
+function transformPiece(p,kind){
+  if(!p || G.busy) return;
+  const T = TRANSFORMS[kind];
+  const old=p.cells, oldD=dims(old), nc=T.fn(old), nd=dims(nc);
+  if(kind.startsWith('rot')) SFX.rot(); else SFX.flip();
+  // 드래그 중(흔들기)에는 SVG를 다시 그리지 않는다.
+  // 손가락 아래 요소가 바뀌면 모바일에서 터치가 끊겨 조각이 멈추기 때문 → 화면은 CSS 반전으로만 보여주고 손을 뗄 때 다시 그림
+  if(p.dragging){
+    p.cells=nc; p.vis=p.vis||{sx:1,sy:1};
+    if(kind==='flip') p.vis.sx*=-1; else if(kind==='flipv') p.vis.sy*=-1;
+    else { p.needRender=true; }
+    gsap.to(p.inner,{scaleX:1.06*p.vis.sx, scaleY:1.06*p.vis.sy, transformOrigin:'50% 50%', duration:.18, ease:'power2.out'});
+    return;
+  }
+  let stayed=false;
+  const onBoard = p.placed || p.floating;
+  if(onBoard){
+    const {gx,gy}=onBoard; if(p.placed) unoccupy(p); p.cells=nc;
+    // 중심을 유지하는 위치부터 시도
+    const cx=gx+oldD.w/2-nd.w/2, cy=gy+oldD.h/2-nd.h/2;
+    const tries=[[Math.round(cx),Math.round(cy)],[Math.floor(cx),Math.floor(cy)],[Math.ceil(cx),Math.ceil(cy)],[gx,gy]];
+    for(const [tx,ty] of tries){ if(canPlace(p,tx,ty)){ occupy(p,tx,ty); stayed=true; break; } }
+    if(!stayed){ // 자리가 안 맞아도 판 위에서 그대로 회전 (트레이로 돌려보내지 않음)
+      const P=G.puzzle;
+      const W=$('#stage').clientWidth, c=G.cell;
+      const minX=-Math.floor(G.boardX/c), maxX=Math.floor((W-G.boardX)/c)-nd.w;     // 화면 밖으로 나가지 않게
+      const minY=-Math.floor(G.boardY/c), maxY=P.h-nd.h+1;
+      const fx=Math.min(Math.max(Math.round(cx),minX),maxX), fy=Math.min(Math.max(Math.round(cy),minY),maxY);
+      setFloating(p,{gx:fx,gy:fy}); stayed=true;
+    }
+  } else p.cells=nc;
+  renderPiece(p);
+  gsap.fromTo(p.inner,{...T.from,transformOrigin:'50% 50%'},{rotation:0,scaleX:p.dragging?1.06:1,scaleY:p.dragging?1.06:1,duration:.22,ease:'back.out(1.6)'});
+  if(stayed){ const g=p.placed||p.floating; gsap.killTweensOf(p.el,'x,y'); gsap.set(p.el,{x:G.boardX+g.gx*G.cell,y:G.boardY+g.gy*G.cell}); checkSolved(); }
+  layoutTray(true);
+}
+function select(p){
+  G.selected=p; G.pieces.forEach(q=>q.el.classList.toggle('selected',q===p));
+}
+
+/* ---------- 문제 시작 ---------- */
+function newPuzzle(){
+  const k = cfg.diff==='easy'?3 : cfg.diff==='hard'?4 : (Math.random()<.5?3:4);
+  let P=null; while(!P) P=generatePuzzle(k);
+  G.puzzle=P; G.target=new Set(P.cells.map(c=>c.join(','))); G.occ=new Map();
+  G.pieces.forEach(p=>{ p.drag&&p.drag.kill(); p.el.remove(); });
+  G.pieces = shuffle(P.ids).map(id=>{
+    const el=document.createElement('div'); el.className='piece';
+    const inner=document.createElement('div'); inner.className='inner'; el.appendChild(inner);
+    $('#stage').appendChild(el);
+    // 트레이에서는 가로로 눕힌 무작위 방향으로 제시
+    const os=PIECES[id].orients, wide=os.filter(o=>{const d=dims(o);return d.w>=d.h;});
+    const p={id,el,inner,cells:pick(wide.length?wide:os),placed:null,home:{x:0,y:0}};
+    makeDraggable(p); return p;
+  });
+  layout(false);
+  select(null);
+  // 등장 연출
+  gsap.fromTo('#board',{scale:.85,opacity:0,transformOrigin:'50% 30%'},{scale:1,opacity:1,duration:.35,ease:'back.out(1.7)'});
+  gsap.fromTo(G.pieces.map(p=>p.inner),{y:30,opacity:0},{y:0,opacity:1,duration:.3,stagger:.06,ease:'power2.out',delay:.1});
+  G.puzzleStart=performance.now();
+  G.busy=false;
+  updateHud();
+}
+function makeDraggable(p){
+  p.el.addEventListener('contextmenu',e=>{e.preventDefault(); select(p); transformPiece(p,'flip');});
+  p.drag = Draggable.create(p.el,{
+    type:'x,y', bounds:'#stage', zIndexBoost:true, minimumMovement:6, allowContextMenu:true,
+    onPress(){ if(G.busy) return; select(p); SFX.init(); p.shake=null; shakeReset(p,this.pointerX,this.pointerY,performance.now()); },
+    onDragStart(){ if(p.placed) unoccupy(p); setFloating(p,null); p.dragging=true; p.el.classList.add('dragging'); SFX.pick();
+      gsap.to(p.inner,{scale:1.06,duration:.12}); },
+    onDrag(){
+      const kind=shakeCheck(p,this.pointerX,this.pointerY,performance.now());
+      if(kind) transformPiece(p,kind);
+    },
+    onDragEnd(){ p.dragging=false; p.shake=null; p.el.classList.remove('dragging');
+      if(p.vis||p.needRender){ gsap.killTweensOf(p.inner); renderPiece(p); gsap.set(p.inner,{scaleX:1.06,scaleY:1.06}); p.vis=null; p.needRender=false; }
+      gsap.to(p.inner,{scale:1,duration:.12});
+      tryDrop(p,this.x,this.y); },
+    onClick(e){ if(e && e.button===2) return; transformPiece(p,'rot'); },
+  })[0];
+}
+
+/* ---------- 완성 체크 ---------- */
+function checkSolved(){
+  if(G.occ.size!==G.target.size || G.busy) return;
+  G.busy=true;
+  const t=performance.now()-G.puzzleStart; G.splits.push({t,pass:false}); G.solved++;
+  SFX.win(); shout('우봉고!');
+  if(window.confetti) confetti({particleCount:70,spread:70,origin:{y:.4},colors:['#f39a2b','#e15236','#decc28','#2da2e2','#349b57','#fff6e0']});
+  gsap.to('#board .tablet',{boxShadow:'0 8px 0 #2e1407,0 0 40px #ffd27a',duration:.2,yoyo:true,repeat:1});
+  updateHud();
+  if(cfg.mode==='count' && G.solved>=cfg.setting){ G.finishAt=performance.now(); G.running=false; cancelAnimationFrame(G.raf); $('#timer').textContent=fmt(G.finishAt-G.start+G.penalty,true); setTimeout(()=>endGame(true),900); return; }
+  setTimeout(()=>{ if(G.running) outroThen(newPuzzle); },850);
+}
+function outroThen(fn){
+  gsap.to(['#board',...G.pieces.map(p=>p.el)],{opacity:0,y:'-=20',duration:.2,onComplete:()=>{
+    gsap.set(['#board',...G.pieces.map(p=>p.el)],{opacity:1}); gsap.set('#board',{y:0}); fn(); }});
+}
+function shout(text){
+  const s=$('#shout'); s.textContent=text; gsap.killTweensOf(s);
+  gsap.timeline().fromTo(s,{opacity:0,scale:.3,rotation:-12},{opacity:1,scale:1.1,rotation:3,duration:.28,ease:'back.out(3)'})
+    .to(s,{scale:1,rotation:0,duration:.15}).to(s,{opacity:0,y:-40,duration:.3,delay:.25}).set(s,{y:0});
+}
+
+/* ---------- 패스 ---------- */
+function passPuzzle(){
+  if(!G.running||G.busy) return;
+  G.busy=true; G.passes++; SFX.pass();
+  G.splits.push({t:performance.now()-G.puzzleStart,pass:true});
+  if(cfg.mode==='time') G.deadline-=PENALTY; else G.penalty+=PENALTY;
+  toast('패스! 10초 페널티');
+  gsap.fromTo('#timer',{scale:1.3,color:'#ff6a4a'},{scale:1,duration:.5,onComplete:()=>gsap.set('#timer',{clearProps:'color,transform'})});
+  outroThen(newPuzzle);
+}
+
+/* ---------- 타이머 / HUD ---------- */
+function updateHud(){
+  $('#hudLeft').innerHTML = cfg.mode==='time' ? `푼 문제<b>${G.solved}</b>` : `진행<b>${G.solved} / ${cfg.setting}</b>`;
+  if(G.solved>0) gsap.fromTo('#hudLeft b',{scale:1.4,transformOrigin:'0% 50%'},{scale:1,duration:.35,ease:'back.out(2.5)'});
+}
+function loop(){
+  if(!G.running) return;
+  const now=performance.now(), el=$('#timer');
+  if(cfg.mode==='time'){
+    const left=G.deadline-now; el.textContent=fmt(left+999);
+    el.classList.toggle('warn',left<=10000);
+    const sec=Math.ceil(left/1000);
+    if(left<=10000 && sec!==G.lastTickSec && sec>0){ G.lastTickSec=sec; SFX.tick(); gsap.fromTo(el,{scale:1.15},{scale:1,duration:.3}); }
+    if(left<=0){ endGame(); return; }
+  } else {
+    el.textContent=fmt(now-G.start+G.penalty,true); el.classList.remove('warn');
+  }
+  G.raf=requestAnimationFrame(loop);
+}
+
+/* ---------- 게임 흐름 ---------- */
+async function startGame(){
+  SFX.init();
+  Object.assign(G,{solved:0,passes:0,splits:[],penalty:0,lastTickSec:-1,running:false,busy:true,paused:false});
+  show('game');
+  $('#timer').textContent = cfg.mode==='time' ? fmt(cfg.setting*60000) : '0:00.0';
+  updateHud();
+  newPuzzle(); G.busy=true;
+  gsap.set(G.pieces.map(p=>p.el),{opacity:.0}); gsap.set('#board',{opacity:0});
+  await countdown();
+  gsap.to('#board',{opacity:1,duration:.2}); gsap.to(G.pieces.map(p=>p.el),{opacity:1,duration:.2,stagger:.05});
+  G.start=performance.now(); G.puzzleStart=G.start; G.deadline=G.start+cfg.setting*60000;
+  G.running=true; G.busy=false; loop();
+}
+function countdown(){
+  return new Promise(res=>{
+    const box=$('#countdown'), sp=box.querySelector('span'); box.style.display='flex';
+    const tl=gsap.timeline({onComplete:()=>{box.style.display='none';res();}});
+    ['3','2','1','시작!'].forEach((t,i)=>{
+      tl.call(()=>{sp.textContent=t; i<3?SFX.count():SFX.go();})
+        .fromTo(sp,{scale:2,opacity:0},{scale:1,opacity:1,duration:.3,ease:'back.out(2)'})
+        .to(sp,{opacity:0,scale:.7,duration:.25,delay:i<3?.3:.15});
+    });
+  });
+}
+async function endGame(force){
+  if(!G.running && !force) return;
+  G.running=false; cancelAnimationFrame(G.raf); G.busy=true;
+  const now=G.finishAt||performance.now(); G.finishAt=0;
+  const timeMs = cfg.mode==='count' ? now-G.start+G.penalty : cfg.setting*60000;
+  const rec={solved:G.solved, passes:G.passes, timeMs:Math.round(timeMs), date:new Date().toISOString()};
+  const {isBest,best} = await RecordStore.save(cfg,rec);
+  SFX.end();
+  if(cfg.mode==='time') shout('시간 끝!');
+  setTimeout(()=>showResult(rec,isBest,best), cfg.mode==='time'?900:300);
+}
+function showResult(rec,isBest,best){
+  const modeName = cfg.mode==='time' ? `제한시간 ${cfg.setting}분` : `스피드런 ${cfg.setting}문제`;
+  const diffName = {easy:'쉬움',hard:'어려움',mix:'섞기'}[cfg.diff];
+  $('#resMode').textContent = `${modeName} · ${diffName}`;
+  $('#resMain').textContent = cfg.mode==='time' ? `${rec.solved}문제` : fmt(rec.timeMs,true);
+  $('#resBest').textContent = bestText(cfg,best);
+  const solvedSplits=G.splits.filter(s=>!s.pass);
+  $('#resAvg').textContent = solvedSplits.length ? fmtSec(solvedSplits.reduce((a,s)=>a+s.t,0)/solvedSplits.length) : '-';
+  $('#resPass').textContent = rec.passes;
+  $('#resSplits').innerHTML = G.splits.map((s,i)=>`<span class="${s.pass?'p':''}">${i+1}. ${s.pass?'패스':fmtSec(s.t)}</span>`).join('') || '<span>기록 없음</span>';
+  $('#resNew').style.display = isBest && (rec.solved>0) ? 'block':'none';
+  G.pieces.forEach(p=>{p.drag&&p.drag.kill();p.el.remove();}); G.pieces=[];
+  show('result');
+  gsap.fromTo('#result .panel',{y:40,opacity:0},{y:0,opacity:1,duration:.4,ease:'back.out(1.5)'});
+  if(isBest && rec.solved>0 && window.confetti){ confetti({particleCount:140,spread:100,origin:{y:.3}}); }
+  refreshBest();
+}
+/* ---------- 포기 확인 창 (열려 있는 동안 타이머 정지) ---------- */
+function quitGame(){
+  if(!G.running || G.paused || G.busy) return;
+  G.paused=true; G.pauseAt=performance.now(); G.running=false; cancelAnimationFrame(G.raf);
+  G.pieces.forEach(p=>p.drag&&p.drag.disable());
+  SFX.pick();
+  const m=$('#quitModal'); m.style.display='flex';
+  gsap.fromTo(m,{opacity:0},{opacity:1,duration:.15});
+  gsap.fromTo('#quitModal .panel',{scale:.8,y:20},{scale:1,y:0,duration:.3,ease:'back.out(2)'});
+}
+function closeQuitModal(){
+  return new Promise(res=>gsap.to('#quitModal',{opacity:0,duration:.15,onComplete:()=>{$('#quitModal').style.display='none';res();}}));
+}
+async function quitYes(){
+  if(!G.paused) return;
+  G.paused=false; SFX.back();
+  await closeQuitModal();
+  G.pieces.forEach(p=>{p.drag&&p.drag.kill();p.el.remove();}); G.pieces=[];
+  show('home'); refreshBest();
+}
+async function quitNo(){
+  if(!G.paused) return;
+  SFX.pick();
+  await closeQuitModal();
+  const d=performance.now()-G.pauseAt;   // 멈춰 있던 시간만큼 뒤로 미루기
+  G.start+=d; G.deadline+=d; G.puzzleStart+=d;
+  G.paused=false; G.running=true;
+  G.pieces.forEach(p=>p.drag&&p.drag.enable());
+  loop();
+}
+
+/* ---------- 버튼 & 키보드 ---------- */
+$('#btnStart').onclick=startGame;
+$('#btnAgain').onclick=startGame;
+$('#btnMenu').onclick=()=>{show('home');refreshBest();};
+$('#btnQuit').onclick=quitGame;
+$('#btnQuitYes').onclick=quitYes;
+$('#btnQuitNo').onclick=quitNo;
+$('#btnPass').onclick=passPuzzle;
+const target=()=>G.selected || G.pieces.find(p=>!p.placed&&!p.floating) || G.pieces[0];
+$('#btnRot').onclick=()=>{const p=target(); select(p); transformPiece(p,'rot');};
+$('#btnFlip').onclick=()=>{const p=target(); select(p); transformPiece(p,'flip');};
+$('#btnSound').onclick=()=>{SFX.on=!SFX.on; $('#btnSound').textContent=SFX.on?'🔊':'🔇';};
+addEventListener('keydown',e=>{
+  if(G.paused){ if(e.key==='Escape') quitNo(); if(e.key==='Enter') quitYes(); return; }
+  if(!G.running) return;
+  if(e.key==='Escape'){ quitGame(); return; } const k=e.key.toLowerCase();
+  if(k==='r'){const p=target(); select(p); transformPiece(p,'rot');}
+  if(k==='f'){const p=target(); select(p); transformPiece(p,'flip');}
+  if(k==='tab'){e.preventDefault(); const i=G.pieces.indexOf(G.selected); select(G.pieces[(i+1)%G.pieces.length]);}
+});
+let rz; addEventListener('resize',()=>{clearTimeout(rz); rz=setTimeout(()=>{ if(G.puzzle && $('#game').classList.contains('active')) layout(false); },120);});
+
+if(!window.gsap){ document.body.insertAdjacentHTML('afterbegin','<p style="background:#000;padding:10px;text-align:center">GSAP을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'); }
+</script>
+</body>
+</html>
