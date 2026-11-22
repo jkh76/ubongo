@@ -10,7 +10,7 @@
 ## 작업 규칙
 
 - 깃허브 푸시는 경훈이 "푸시해"라고 말할 때만 한다. 그 전에 수정한 `우봉고.html`을 먼저 보여 준다.
-- 푸시할 때마다 `index.html`의 `const VERSION = 'v1.1 2026-11-20';`을 바꾼다.
+- 푸시할 때마다 `index.html`의 `const VERSION = 'v1.2 2026-11-23';`을 바꾼다.
   - 버전은 0.1씩 올린다 (예: 1.1 → 1.2). 경훈이 버전을 지정하면 그 값을 쓴다.
   - 날짜는 푸시하는 날짜(`yyyy-mm-dd`, 한국 시간). 홈·결과 화면 아래 `.version`에 표시된다.
   - 아래 '버전 기록' 표와 README.md의 버전 표에 한 줄씩 추가한다.
@@ -37,24 +37,27 @@
 
 - 이 기기: `localStorage`의 `ubongo.best.<mode>.<setting>.<diff>` = `{solved, passes, timeMs, date}` (18칸), 최근 50판은 `ubongo.history`.
 - 더 좋은 기록(`RecordStore.better`): 제한시간은 푼 문제가 많은 쪽(같으면 패스 적은 쪽), 스피드런은 시간이 짧은 쪽.
-- 기기 간 공유 (v1.0): Firebase Realtime Database를 **SDK 없이 REST API**로 호출 (슬리더링크와 같은 방식).
+- 기기 간 공유 (v1.0, v1.2부터 닉네임+비밀번호): Firebase Realtime Database를 **SDK 없이 REST API**로 호출 (슬리더링크와 같은 방식).
   - 프로젝트 `ubongomobile`, `FB.key`(웹 API 키), `FB.db` = `https://ubongomobile-default-rtdb.asia-southeast1.firebasedatabase.app` (둘 다 공개돼도 되는 값).
   - 익명 로그인(Identity Toolkit `accounts:signUp`) 토큰을 `ubongo.fb.auth`에 두고, 만료되면 refresh token으로 갱신.
-  - 데이터: `sync/<8자리 코드>` = `{best:{"<mode>_<setting>_<diff>":{s,p,t,d}}, updated}`. 코드 문자는 I·O·0·1을 뺀 32자. 이 기기 코드는 `ubongo.sync.code`.
+  - 닉네임(2~12자, 대소문자 구분 없음) + 비밀번호(4~20자). SHA-256 해시 앞 32자를 저장 위치로 써서 서버에 닉네임·비밀번호가 그대로 남지 않는다.
+  - 데이터: `users/<sha256("ubongo|user|"+닉네임 소문자+"|"+비밀번호)>` = `{best:{"<mode>_<setting>_<diff>":{s,p,t,d}}, updated}`, `names/<sha256("ubongo|name|"+닉네임 소문자)>` = `true`(닉네임 사용 표시, 한 번 만들면 못 바꿈).
+  - 연결(`Sync.login`): `users/<id>`가 있으면 합침 → 없고 `names`가 있으면 비밀번호 틀림 → 둘 다 없으면 "새로 만들까요?" 확인 후 `createPending`(names → users 순서로 PUT). 이 기기에는 `ubongo.sync.user` = `{nick,id}`만 저장(비밀번호 저장 안 함). 예전 `ubongo.sync.code`는 시작할 때 지움.
   - `Sync.merge`: 서버를 받아 칸마다 더 좋은 기록을 양쪽에 남김(서버가 좋으면 이 기기에 쓰고, 이 기기가 좋으면 PATCH). 같은 걸 여러 번 해도 결과가 같아서 대기열이 필요 없다.
   - 앱 시작 0.6초 뒤, 기록 창 열 때, 신기록이 나왔을 때 `Sync.now()`. 오프라인이면 다음에 맞춤.
-  - 보안 규칙(Firebase 콘솔): `sync/$code`만 로그인한 사용자가 읽기·쓰기, 코드·키·값 형식 검사, 다른 필드 금지.
+  - 보안 규칙(Firebase 콘솔): `users/$id`는 로그인한 사용자가 읽기·쓰기(32자 16진수, 키·값 형식 검사, 다른 필드 금지), `names/$n`은 없을 때만 `true`로 쓰기. 옛 `sync/$code` 규칙은 구버전 기기용으로 남겨 둠.
   - claude.ai 미리보기에서는 외부 연결이 막힐 수 있음 → 실제 확인은 깃허브 주소에서.
 
 ## 테스트
 
 - 문법: 마지막 `<script>`를 떼어 `node --check`.
-- 화면·동기화: Playwright로 열고, GSAP/confetti CDN과 Firebase 주소를 가짜 응답으로 가로채(route) 두 기기(컨텍스트 2개)에서 코드 만들기 → 코드 입력 → 기록이 합쳐지는지 확인.
+- 화면·동기화: Playwright로 열고, GSAP/confetti CDN과 Firebase 주소를 가짜 응답으로 가로채(route) 두 기기(컨텍스트 2개)에서 닉네임 새로 만들기 → 다른 기기에서 틀린 비밀번호(거부)·맞는 비밀번호(합침) → 기록이 양쪽에 합쳐지는지 확인.
 
 ## 버전 기록
 
 | 버전 | 날짜 | 내용 |
 | --- | --- | --- |
+| 1.2 | 2026-11-23 | 기기 간 기록 공유를 8자리 코드 대신 닉네임 + 비밀번호로 (해시로 저장) |
 | 1.1 | 2026-11-20 | 우상단 ✕를 두꺼운 일시정지 아이콘으로, 일시정지 창(계속하기 / 그만하기, 그만하기는 두 번 확인) |
 | 1.0 | 2026-11-20 | 전체 기록 화면(18칸), 8자리 코드로 기기 간 기록 공유 (Firebase) |
 | 0.5 | 2026-11-19 | 파비콘·홈 화면 아이콘 |

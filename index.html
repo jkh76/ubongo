@@ -104,7 +104,7 @@ details.howto ul{margin:8px 0 0;padding-left:18px}
 .controls button small{display:block;font-weight:400;font-size:11px;opacity:.8}
 #shout{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:'Black Han Sans';font-size:clamp(56px,17vw,96px);color:var(--cream);
   text-shadow:0 5px 0 var(--clay),0 10px 0 var(--earth-2),0 16px 26px rgba(0,0,0,.45);pointer-events:none;z-index:50;opacity:0;white-space:nowrap}
-#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(46,20,7,.92);padding:9px 16px;border-radius:20px;font-size:14px;z-index:60;opacity:0;pointer-events:none;white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(46,20,7,.92);padding:9px 16px;border-radius:20px;font-size:14px;z-index:90;opacity:0;pointer-events:none;white-space:nowrap}
 #countdown{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70;background:rgba(46,20,7,.55)}
 #countdown span{font-family:'Black Han Sans';font-size:120px;color:var(--cream);text-shadow:0 6px 0 var(--clay)}
 #quitModal,#recModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:80;padding:20px;
@@ -128,12 +128,14 @@ details.howto ul{margin:8px 0 0;padding-left:18px}
 .sync-box h4 i{width:8px;height:8px;border-radius:50%;background:#7bd36a;display:inline-block}
 .sync-box h4 i.err{background:#ff6a4a}
 .sync-box p{margin:0 0 10px;font-size:12.5px;line-height:1.55;color:var(--sand)}
-.sync-code{font-family:'Black Han Sans';font-size:30px;letter-spacing:3px;color:var(--sun);margin:2px 0 6px}
+.sync-box p b{color:var(--sun)}
+.sync-nick{font-family:'Black Han Sans';font-size:28px;letter-spacing:1px;color:var(--sun);margin:2px 0 6px;word-break:break-all}
 .sync-box .row{display:flex;gap:6px}
 .sync-box .row button{flex:1;border:0;border-radius:10px;padding:10px 4px;font:700 14px 'Noto Sans KR';cursor:pointer;color:var(--ink);background:linear-gradient(180deg,var(--sand),var(--sand-2))}
 .sync-box .row button.primary{background:linear-gradient(180deg,#ffd27a,var(--sun))}
 .sync-box .row button:disabled{opacity:.55}
-.sync-box input{width:100%;margin-bottom:8px;border:0;border-radius:10px;padding:11px;text-align:center;font:400 24px 'Black Han Sans';letter-spacing:3px;background:rgba(0,0,0,.3);color:var(--cream);outline:none}
+.sync-box input{width:100%;margin-bottom:8px;border:0;border-radius:10px;padding:11px;text-align:center;font:400 17px 'Noto Sans KR';background:rgba(0,0,0,.3);color:var(--cream);outline:none;user-select:text;-webkit-user-select:text}
+.sync-box input:focus{box-shadow:0 0 0 2px var(--sun)}
 .sync-box input::placeholder{color:rgba(246,227,180,.35)}
 
 /* ---------- 결과 ---------- */
@@ -309,7 +311,7 @@ const PIECE_DEFS = {
   K:{color:'#349b57', rows:['##','##','.#']},          // P 5칸
   L:{color:'#e6b625', rows:['##.','.#.','.##']},       // Z 5칸
 };
-const VERSION = 'v1.1 2026-11-20';
+const VERSION = 'v1.2 2026-11-23';
 document.querySelectorAll('.version').forEach(e=>e.textContent=VERSION);
 const IDS = Object.keys(PIECE_DEFS);
 if(window.gsap){ gsap.registerPlugin(Draggable); gsap.defaults({overwrite:'auto'}); }
@@ -473,8 +475,10 @@ const RecordStore = {
 };
 
 /* ---------- 기기 간 기록 공유 (Firebase Realtime Database REST API, 라이브러리 없이) ----------
-   sync/<8자리 코드> = { best:{ "<mode>_<setting>_<diff>": {s:푼 문제, p:패스, t:ms, d:날짜} }, updated:시각 }
-   같은 코드를 입력한 기기끼리 같은 최고 기록을 씀. 합칠 때는 항상 더 좋은 기록이 남음. */
+   닉네임 + 비밀번호로 SHA-256 해시를 만들어 저장 위치로 씀 → 서버에는 닉네임·비밀번호가 그대로 남지 않음
+   users/<해시 32자> = { best:{ "<mode>_<setting>_<diff>": {s:푼 문제, p:패스, t:ms, d:날짜} }, updated:시각 }
+   names/<닉네임 해시 32자> = true   (이미 쓰고 있는 닉네임인지 확인용, 한 번 만들면 못 바꿈)
+   같은 닉네임·비밀번호를 넣은 기기끼리 같은 최고 기록을 씀. 합칠 때는 항상 더 좋은 기록이 남음. */
 const FB = {
   key:'AIzaSyDLfquwplL5cufwl4lsMidJtE8dsKGuXKU',
   db:'https://ubongomobile-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -486,13 +490,23 @@ const toRemote = r => ({s:r.solved, p:r.passes, t:r.timeMs, d:String(r.date||'')
 const fromRemote = r => r && ({solved:r.s, passes:r.p, timeMs:r.t, date:r.d});
 const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch(e){ return d; } };
 const lsSet=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
-const CODE_CH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 I·O·0·1 제외
-const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
-const fmtCode=c=>c.slice(0,4)+'-'+c.slice(4);
-const normCode=v=>(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normNick=v=>(v||'').normalize('NFC').trim().replace(/\s+/g,' ');
+const NICK_MIN=2, NICK_MAX=12, PW_MIN=4, PW_MAX=20;
+async function sha32(s){
+  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,32);
+}
+// 닉네임은 대소문자 구분 없음, 비밀번호는 구분함
+async function idsOf(nick,pw){
+  const n=normNick(nick).toLowerCase();
+  return { id:await sha32('ubongo|user|'+n+'|'+pw), nameId:await sha32('ubongo|name|'+n) };
+}
+try{ localStorage.removeItem('ubongo.sync.code'); }catch(e){}   // 예전 8자리 코드 방식 정리 (이 기기 기록은 그대로)
 
 const Sync = {
-  code: lsGet('ubongo.sync.code',null), busy:false, err:false, joining:false,
+  user: lsGet('ubongo.sync.user',null),   // {nick, id} — 비밀번호는 저장하지 않음
+  busy:false, err:false, pending:null, lastNick:'',
   async auth(){
     let a=lsGet('ubongo.fb.auth',null), r, j;
     if(a&&a.exp>Date.now()+60000) return a.tok;
@@ -510,13 +524,13 @@ const Sync = {
   async req(method,path,body){
     const tok=await this.auth();
     const r=await fetch(`${FB.db}/${path}.json?auth=${encodeURIComponent(tok)}`,{method,body:body===undefined?undefined:JSON.stringify(body)});
-    if(!r.ok) throw new Error('db '+r.status);
+    if(!r.ok){ const e=new Error('db '+r.status); e.status=r.status; throw e; }
     return r.json();
   },
   localAll(){ const o={}; for(const c of ALL_CFGS){ const b=RecordStore.getBestSync(c); if(b) o[remoteKey(c)]=toRemote(b); } return o; },
   // 서버 기록과 이 기기 기록을 합침: 각 칸마다 더 좋은 쪽을 양쪽에 남김
-  async merge(code){
-    const rem=await this.req('GET',`sync/${code}`);
+  async merge(id){
+    const rem=await this.req('GET',`users/${id}`);
     if(rem===null) return null;
     const rb=rem.best||{}, upd={};
     for(const c of ALL_CFGS){
@@ -524,28 +538,32 @@ const Sync = {
       if(RecordStore.better(c,R,L)) RecordStore.setBest(c,R);
       else if(RecordStore.better(c,L,R)) upd['best/'+k]=toRemote(L);
     }
-    if(Object.keys(upd).length){ upd.updated={'.sv':'timestamp'}; await this.req('PATCH',`sync/${code}`,upd); }
+    if(Object.keys(upd).length){ upd.updated={'.sv':'timestamp'}; await this.req('PATCH',`users/${id}`,upd); }
     lsSet('ubongo.sync.at',Date.now());
     return true;
   },
   async now(){
-    if(!this.code||this.busy) return;
+    if(!this.user||this.busy) return;
     this.busy=true; renderSyncBox();
-    try{ await this.merge(this.code); this.err=false; }catch(e){ this.err=true; }
+    try{ await this.merge(this.user.id); this.err=false; }catch(e){ this.err=true; }
     this.busy=false; renderSyncBox(); renderRecGrid(); refreshBest();
   },
-  async create(){
-    let code=''; for(const b of crypto.getRandomValues(new Uint8Array(8))) code+=CODE_CH[b%32];
-    await this.req('PUT',`sync/${code}`,{best:this.localAll(),updated:{'.sv':'timestamp'}});
-    this.link(code); lsSet('ubongo.sync.at',Date.now()); this.err=false;
+  // 결과: 'ok' 기존 기록과 합침 / 'new' 처음 쓰는 닉네임 / 'wrongpw' 있는 닉네임인데 비밀번호가 다름
+  async login(nick,pw){
+    const {id,nameId}=await idsOf(nick,pw);
+    if(await this.merge(id)){ this.link(nick,id); this.err=false; return 'ok'; }
+    if(await this.req('GET',`names/${nameId}`)) return 'wrongpw';
+    this.pending={nick,id,nameId}; return 'new';
   },
-  async join(code){
-    const ok=await this.merge(code);
-    if(!ok){ const e=new Error('nocode'); e.nocode=true; throw e; }
-    this.link(code); this.err=false;
+  async createPending(){
+    const P=this.pending; if(!P) return;
+    try{ await this.req('PUT',`names/${P.nameId}`,true); }   // 규칙상 이미 있는 닉네임이면 거부됨
+    catch(e){ if(e.status===401||e.status===403){ const x=new Error('taken'); x.taken=true; throw x; } throw e; }
+    await this.req('PUT',`users/${P.id}`,{best:this.localAll(),updated:{'.sv':'timestamp'}});
+    this.link(P.nick,P.id); this.pending=null; lsSet('ubongo.sync.at',Date.now()); this.err=false;
   },
-  link(code){ this.code=code; lsSet('ubongo.sync.code',code); },
-  unlink(){ this.code=null; try{ localStorage.removeItem('ubongo.sync.code'); }catch(e){} },
+  link(nick,id){ this.user={nick,id}; lsSet('ubongo.sync.user',this.user); },
+  unlink(){ this.lastNick=this.user?this.user.nick:''; this.user=null; try{ localStorage.removeItem('ubongo.sync.user'); }catch(e){} },
 };
 
 /* =========================================================
@@ -566,7 +584,7 @@ const fmt = (ms,dec=false) => {
 const fmtSec = ms => (ms/1000).toFixed(1)+'초';
 function bestText(c,b){ if(!b) return '-'; return c.mode==='count' ? fmt(b.timeMs,true) : `${b.solved}문제`; }
 
-function toast(msg){ const t=$('#toast'); t.textContent=msg; gsap.killTweensOf(t); gsap.fromTo(t,{opacity:0,y:10},{opacity:1,y:0,duration:.2}); gsap.to(t,{opacity:0,delay:1.4,duration:.3}); }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; gsap.killTweensOf(t); gsap.fromTo(t,{opacity:0,y:10},{opacity:1,y:0,duration:.2}); gsap.to(t,{opacity:0,delay:1.8,duration:.3}); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id)); }
 
 /* ---------- 홈 화면 설정 ---------- */
@@ -615,40 +633,49 @@ function ago(t){
   if(s<60) return '방금'; if(s<3600) return Math.floor(s/60)+'분 전'; if(s<86400) return Math.floor(s/3600)+'시간 전';
   const d=new Date(t); return `${d.getMonth()+1}/${d.getDate()}`;
 }
+const NET_ERR='연결하지 못했어요. 인터넷을 확인해 주세요';
 function renderSyncBox(){
   const el=$('#syncBox'); if(!el || $('#recModal').style.display!=='flex') return;
-  if(!Sync.code && Sync.joining){
-    el.innerHTML=`<h4>코드 입력</h4><p>다른 기기에서 만든 8자리 코드를 입력하세요.<br>두 기기의 기록 중 더 좋은 기록이 남아요.</p>
-      <input id="codeIn" maxlength="9" placeholder="ABCD-EFGH" autocomplete="off" autocapitalize="characters" spellcheck="false">
-      <div class="row"><button id="codeNo">취소</button><button class="primary" id="codeYes">연결</button></div>`;
-    const inp=$('#codeIn'); setTimeout(()=>inp.focus(),60);
-    inp.addEventListener('input',e=>{const c=normCode(e.target.value).slice(0,8); e.target.value=c.length>4?fmtCode(c):c;});
-    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') $('#codeYes').click(); });
-    $('#codeNo').onclick=()=>{ Sync.joining=false; renderSyncBox(); };
-    $('#codeYes').onclick=async()=>{
-      const code=normCode(inp.value);
-      if(!CODE_RE.test(code)){ toast('8자리 코드를 확인해 주세요'); return; }
-      const b=$('#codeYes'); b.disabled=true; b.textContent='연결 중…';
-      try{ await Sync.join(code); Sync.joining=false; toast('기록을 합쳤어요'); }
-      catch(e){ toast(e.nocode?'없는 코드예요. 다시 확인해 주세요':'연결하지 못했어요. 인터넷을 확인해 주세요'); b.disabled=false; b.textContent='연결'; return; }
+  if(!Sync.user && Sync.pending){
+    // 처음 쓰는 닉네임 → 새로 만들지 확인
+    el.innerHTML=`<h4>새 닉네임</h4><p><b>${esc(Sync.pending.nick)}</b>은(는) 처음 쓰는 닉네임이에요.<br>이 닉네임과 비밀번호로 새로 만들까요?<br>이 기기의 기록이 그대로 올라가요.</p>
+      <div class="row"><button id="syncBack">취소</button><button class="primary" id="syncMake">새로 만들기</button></div>`;
+    $('#syncBack').onclick=()=>{ Sync.lastNick=Sync.pending.nick; Sync.pending=null; renderSyncBox(); };
+    $('#syncMake').onclick=async()=>{
+      const b=$('#syncMake'); b.disabled=true; b.textContent='만드는 중…';
+      try{ await Sync.createPending(); toast('기록 공유를 시작했어요'); }
+      catch(e){
+        if(e.taken){ Sync.lastNick=Sync.pending.nick; Sync.pending=null; toast('방금 다른 사람이 쓴 닉네임이에요. 다른 닉네임을 써 주세요'); }
+        else{ toast(NET_ERR); b.disabled=false; b.textContent='새로 만들기'; return; }
+      }
       renderSyncBox(); renderRecGrid(); refreshBest();
     };
-  }else if(!Sync.code){
-    el.innerHTML=`<h4>다른 기기와 기록 공유</h4><p>코드를 만들어 다른 기기에 입력하면<br>휴대폰·PC 어디서든 같은 기록을 써요.</p>
-      <div class="row"><button id="syncNew">코드 만들기</button><button class="primary" id="syncJoin">코드 입력</button></div>`;
-    $('#syncNew').onclick=async()=>{
-      const b=$('#syncNew'); b.disabled=true; b.textContent='만드는 중…';
-      try{ await Sync.create(); toast('공유 코드를 만들었어요'); }catch(e){ toast('연결하지 못했어요. 인터넷을 확인해 주세요'); }
-      renderSyncBox();
+  }else if(!Sync.user){
+    el.innerHTML=`<h4>다른 기기와 기록 공유</h4><p>닉네임과 비밀번호를 정해 두고<br>다른 기기에서 똑같이 넣으면 같은 기록을 써요.</p>
+      <input id="nickIn" maxlength="${NICK_MAX}" placeholder="닉네임 (${NICK_MIN}~${NICK_MAX}자)" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(Sync.lastNick)}">
+      <input id="pwIn" type="password" maxlength="${PW_MAX}" placeholder="비밀번호 (${PW_MIN}자 이상)" autocomplete="current-password">
+      <div class="row"><button class="primary" id="syncGo">연결</button></div>`;
+    const ni=$('#nickIn'), pi=$('#pwIn');
+    ni.addEventListener('keydown',e=>{ if(e.key==='Enter') pi.focus(); });
+    pi.addEventListener('keydown',e=>{ if(e.key==='Enter') $('#syncGo').click(); });
+    $('#syncGo').onclick=async()=>{
+      const nick=normNick(ni.value), pw=pi.value;
+      if(nick.length<NICK_MIN||nick.length>NICK_MAX){ toast(`닉네임은 ${NICK_MIN}~${NICK_MAX}자로 써 주세요`); ni.focus(); return; }
+      if(pw.length<PW_MIN){ toast(`비밀번호는 ${PW_MIN}자 이상으로 써 주세요`); pi.focus(); return; }
+      const b=$('#syncGo'); b.disabled=true; b.textContent='확인 중…';
+      let res;
+      try{ res=await Sync.login(nick,pw); }
+      catch(e){ toast(NET_ERR); b.disabled=false; b.textContent='연결'; return; }
+      if(res==='wrongpw'){ toast('비밀번호가 맞지 않아요 (이미 있는 닉네임이에요)'); b.disabled=false; b.textContent='연결'; pi.value=''; pi.focus(); return; }
+      if(res==='ok') toast('기록을 합쳤어요');
+      renderSyncBox(); renderRecGrid(); refreshBest();
     };
-    $('#syncJoin').onclick=()=>{ Sync.joining=true; renderSyncBox(); };
   }else{
     const at=lsGet('ubongo.sync.at',null);
     const st=Sync.busy?'동기화 중…':Sync.err?'지금은 서버에 연결이 안 돼요. 다음에 자동으로 맞춰요':at?`마지막 동기화 ${ago(at)}`:'';
-    el.innerHTML=`<h4><i class="${Sync.err?'err':''}"></i>기록 공유 중</h4><div class="sync-code">${fmtCode(Sync.code)}</div>
-      <p>${st}<br>다른 기기에서 이 코드를 입력하면 같은 기록을 써요.</p>
-      <div class="row"><button id="syncCopy">코드 복사</button><button id="syncOff">연결 끊기</button></div>`;
-    $('#syncCopy').onclick=()=>{ const c=fmtCode(Sync.code); (navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('코드를 복사했어요')).catch(()=>toast('코드: '+c)); };
+    el.innerHTML=`<h4><i class="${Sync.err?'err':''}"></i>기록 공유 중</h4><div class="sync-nick">${esc(Sync.user.nick)}</div>
+      <p>${st}<br>다른 기기에서 같은 닉네임·비밀번호를 넣으면 같은 기록을 써요.</p>
+      <div class="row"><button id="syncOff">연결 끊기</button></div>`;
     $('#syncOff').onclick=()=>{
       const b=$('#syncOff'); if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='정말 끊기'; return; }
       Sync.unlink(); renderSyncBox(); toast('연결을 끊었어요. 이 기기 기록은 그대로예요');
@@ -663,7 +690,7 @@ function openRec(){
   gsap.fromTo('#recModal .panel',{scale:.85,y:20},{scale:1,y:0,duration:.3,ease:'back.out(2)'});
   Sync.now();
 }
-function closeRec(){ Sync.joining=false; gsap.to('#recModal',{opacity:0,duration:.15,onComplete:()=>{$('#recModal').style.display='none';}}); }
+function closeRec(){ Sync.pending=null; gsap.to('#recModal',{opacity:0,duration:.15,onComplete:()=>{$('#recModal').style.display='none';}}); }
 $('#btnRec').onclick=openRec;
 $('#btnRecClose').onclick=closeRec;
 $('#recModal').addEventListener('click',e=>{ if(e.target.id==='recModal') closeRec(); });
