@@ -15,6 +15,11 @@
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/Draggable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<!-- 뒤집기·완성 장면 3D 연출용. 못 불러와도 게임은 2D 연출로 그대로 돌아간다 -->
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js';
+window.THREE = THREE;
+</script>
 <style>
 :root{
   --sand:#f6e3b4; --sand-2:#ecd08e; --cream:#fff6e0;
@@ -96,6 +101,8 @@ details.howto ul{margin:8px 0 0;padding-left:18px}
 .piece.selected svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px #fff6c8) drop-shadow(0 3px 0 rgba(0,0,0,.35))}
 .piece.floating svg{opacity:.82;filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 5px rgba(255,90,60,.9)) drop-shadow(0 3px 0 rgba(0,0,0,.35))}
 .piece.dragging svg{filter:drop-shadow(0 12px 10px rgba(0,0,0,.45))}
+.piece.fx-hide .inner{opacity:0!important}
+#fx3d{position:fixed;left:0;top:0;pointer-events:none;z-index:40}
 .controls{width:min(560px,100%);display:flex;gap:8px;margin-top:auto;padding-top:12px}
 .controls button{flex:1;border:0;border-radius:12px;padding:13px 4px;font:700 15px 'Noto Sans KR';cursor:pointer;color:var(--ink);
   background:linear-gradient(180deg,var(--sand),var(--sand-2));box-shadow:0 4px 0 #a9813f}
@@ -311,7 +318,7 @@ const PIECE_DEFS = {
   K:{color:'#349b57', rows:['##','##','.#']},          // P 5칸
   L:{color:'#e6b625', rows:['##.','.#.','.##']},       // Z 5칸
 };
-const VERSION = 'v1.2 2026-11-23';
+const VERSION = 'v1.3 2026-11-23';
 document.querySelectorAll('.version').forEach(e=>e.textContent=VERSION);
 const IDS = Object.keys(PIECE_DEFS);
 if(window.gsap){ gsap.registerPlugin(Draggable); gsap.defaults({overwrite:'auto'}); }
@@ -584,8 +591,126 @@ const fmt = (ms,dec=false) => {
 const fmtSec = ms => (ms/1000).toFixed(1)+'초';
 function bestText(c,b){ if(!b) return '-'; return c.mode==='count' ? fmt(b.timeMs,true) : `${b.solved}문제`; }
 
+/* ---------- 3D 연출 (three.js) ----------
+   뒤집기와 완성 장면만 3D로 보여 준다. 판·드래그·배치 판정은 그대로 DOM/SVG.
+   연출하는 동안만 SVG 조각을 숨기고 같은 자리에 입체 조각을 띄운다.
+   three.js를 못 불러오거나 WebGL이 안 되면 false를 돌려주고, 예전 2D 연출을 쓴다 */
+const FX3D = (()=>{
+  let T=null, renderer=null, scene=null, camera=null, glow=null, ok=null;
+  const items=[];
+  const vw=()=>innerWidth, vh=()=>innerHeight;
+  function init(){
+    if(ok!==null) return ok;
+    T=window.THREE; if(!T) return false;            // 아직 못 불러옴 → 다음에 다시 시도
+    try{ renderer=new T.WebGLRenderer({alpha:true,antialias:true}); }catch(e){ ok=false; return false; }
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+    renderer.setClearColor(0x000000,0);
+    renderer.domElement.id='fx3d'; document.body.appendChild(renderer.domElement);
+    scene=new T.Scene();
+    camera=new T.PerspectiveCamera(30,1,1,10000);
+    scene.add(new T.HemisphereLight(0xfff6e0,0x6b3417,1.5));
+    const sun=new T.DirectionalLight(0xffffff,2.4); sun.position.set(-.45,.8,1); scene.add(sun);
+    glow=new T.PointLight(0xffd27a,0,0,0); scene.add(glow);
+    resize(); addEventListener('resize',resize);
+    gsap.ticker.add(()=>{ if(!items.length) return; items.forEach(it=>it.follow()); renderer.render(scene,camera); });
+    ok=true; return true;
+  }
+  // 화면 1px = 3D 1단위가 되도록 카메라 거리를 맞춘다 (z=0 평면이 화면과 딱 겹침)
+  function resize(){
+    if(!renderer) return;
+    renderer.setSize(vw(),vh()); camera.aspect=vw()/vh();
+    const z=(vh()/2)/Math.tan(T.MathUtils.degToRad(15));
+    camera.position.set(0,0,z); camera.far=z*4; camera.updateProjectionMatrix();
+  }
+  // 칸 모음의 바깥 테두리를 한 바퀴 이은 점 목록 (조각에는 구멍이 없음)
+  function outline(cells){
+    const set=new Set(cells.map(q=>q.join(','))), next=new Map();
+    const add=(a,b)=>next.set(a.join(','),b);
+    cells.forEach(([x,y])=>{
+      if(!set.has(`${x},${y-1}`)) add([x,y],[x+1,y]);
+      if(!set.has(`${x+1},${y}`)) add([x+1,y],[x+1,y+1]);
+      if(!set.has(`${x},${y+1}`)) add([x+1,y+1],[x,y+1]);
+      if(!set.has(`${x-1},${y}`)) add([x,y+1],[x,y]);
+    });
+    const start=next.keys().next().value, pts=[]; let k=start;
+    do{ const [x,y]=k.split(',').map(Number); pts.push([x,y]); k=next.get(k).join(','); }while(k!==start && pts.length<200);
+    return pts;
+  }
+  function shapeOf(cells,c){
+    const {w,h}=dims(cells);
+    return new T.Shape(outline(cells).map(([x,y])=>new T.Vector2(x*c-w*c/2, h*c/2-y*c)));
+  }
+  function pieceMesh(cells,color,c){
+    const {w,h}=dims(cells), depth=c*.3, bev=Math.max(1.5,c*.07);
+    const geo=new T.ExtrudeGeometry(shapeOf(cells,c),{depth,bevelEnabled:true,bevelThickness:bev,bevelSize:bev,bevelOffset:-bev,bevelSegments:2});
+    geo.translate(0,0,-depth/2);
+    const g=new T.Group();
+    g.add(new T.Mesh(geo,new T.MeshStandardMaterial({color,roughness:.55,metalness:.05})));
+    // 2D 조각과 같은 칸 무늬 (앞뒷면 모두)
+    const sq=new T.PlaneGeometry(c*.64,c*.64);
+    const sm=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.14,side:T.DoubleSide,depthWrite:false});
+    const zf=depth/2+bev+.6;
+    cells.forEach(([x,y])=>[zf,-zf].forEach(z=>{ const m=new T.Mesh(sq,sm); m.position.set((x+.5)*c-w*c/2, h*c/2-(y+.5)*c, z); g.add(m); }));
+    return g;
+  }
+  function shadowMesh(cells,c){
+    return new T.Mesh(new T.ShapeGeometry(shapeOf(cells,c)), new T.MeshBasicMaterial({color:0x1a0a02,transparent:true,opacity:.3,depthWrite:false}));
+  }
+  function centerOf(el){ const r=el.getBoundingClientRect(); return {x:r.left+r.width/2-vw()/2, y:vh()/2-(r.top+r.height/2)}; }
+  // 조각 하나를 3D로 띄움. st = {lift, rx, ry} 를 타임라인으로 움직이면 매 프레임 SVG 자리를 따라간다
+  function spawn(p,cells,scale){
+    const c=G.cell, it={p, g:pieceMesh(cells,PIECES[p.id].color,c), sh:shadowMesh(cells,c), st:{lift:0,rx:0,ry:0}, tl:null};
+    scene.add(it.sh); scene.add(it.g);
+    it.follow=()=>{
+      const o=centerOf(p.el), L=it.st.lift;
+      it.g.position.set(o.x,o.y,L); it.g.rotation.set(it.st.rx,it.st.ry,0); it.g.scale.setScalar(scale);
+      it.sh.position.set(o.x+L*.22, o.y-L*.38, -c*.45);
+      it.sh.scale.set(Math.abs(Math.cos(it.st.ry))*scale, Math.abs(Math.cos(it.st.rx))*scale, 1);
+      it.sh.material.opacity=.3*Math.max(.25,1-L/(c*3));
+    };
+    p.el.classList.add('fx-hide'); items.push(it); it.follow();
+    return it;
+  }
+  function done(it){
+    const i=items.indexOf(it); if(i<0) return;
+    items.splice(i,1); if(it.tl) it.tl.kill();
+    [it.g,it.sh].forEach(o=>{ scene.remove(o); o.traverse(m=>{ if(m.geometry) m.geometry.dispose(); if(m.material) m.material.dispose(); }); });
+    if(!items.some(x=>x.p===it.p)) it.p.el.classList.remove('fx-hide');
+    if(!items.length) renderer.render(scene,camera);   // 남은 그림 지우기
+  }
+  // 뒤집기: 살짝 들어 올리며 180° 돌고 내려앉음 (흔들기로 들고 있을 때도 손가락을 따라감)
+  function flip(p,oldCells,kind){
+    if(!init()) return false;
+    items.filter(x=>x.p===p).forEach(done);
+    const c=G.cell, it=spawn(p,oldCells,p.dragging?1.06:1), key=kind==='flip'?'ry':'rx';
+    it.tl=gsap.timeline({onComplete:()=>done(it)})
+      .to(it.st,{[key]:Math.PI,duration:.34,ease:'power2.inOut'},0)
+      .to(it.st,{lift:c*1.2,duration:.17,ease:'power2.out'},0)
+      .to(it.st,{lift:0,duration:.17,ease:'power2.in'},.17);
+    return true;
+  }
+  // 완성: 판 위 조각들이 차례로 튀어 올라 한 바퀴 돌고 제자리에 착지, 판 위로 금빛 조명
+  function celebrate(pieces){
+    if(!init()) return false;
+    stopAll();
+    const c=G.cell, b=$('#board .tablet');
+    if(b){ const o=centerOf(b); glow.position.set(o.x,o.y,c*4); }
+    gsap.timeline().to(glow,{intensity:2.6,duration:.2}).to(glow,{intensity:0,duration:.45,delay:.1});
+    pieces.forEach((p,i)=>{
+      const it=spawn(p,p.cells,1), d=i*.07, key=i%2?'rx':'ry', dir=i%2?-1:1;
+      it.tl=gsap.timeline({delay:d,onComplete:()=>done(it)})
+        .to(it.st,{lift:c*(2+i*.25),duration:.26,ease:'power2.out'},0)
+        .to(it.st,{[key]:Math.PI*2*dir,duration:.5,ease:'power2.inOut'},0)
+        .to(it.st,{lift:0,duration:.24,ease:'power2.in'},.26);
+    });
+    return true;
+  }
+  function stopAll(){ [...items].forEach(done); }
+  return {flip, celebrate, stopAll};
+})();
+
 function toast(msg){ const t=$('#toast'); t.textContent=msg; gsap.killTweensOf(t); gsap.fromTo(t,{opacity:0,y:10},{opacity:1,y:0,duration:.2}); gsap.to(t,{opacity:0,delay:1.8,duration:.3}); }
-function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id)); }
+function show(id){ FX3D.stopAll(); document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id)); }
 
 /* ---------- 홈 화면 설정 ---------- */
 function renderSettingSeg(){
@@ -697,19 +822,36 @@ $('#recModal').addEventListener('click',e=>{ if(e.target.id==='recModal') closeR
 setTimeout(()=>Sync.now(),600);
 
 /* ---------- 조각 그리기 (SVG) ---------- */
+// 색을 어둡게/밝게 (k<0 어둡게)
+function shade(hex,k){
+  const n=parseInt(hex.slice(1),16), f=v=>Math.round(k<0? v*(1+k) : v+(255-v)*k);
+  return '#'+[n>>16,(n>>8)&255,n&255].map(f).map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+// 두께 있는 입체 조각: 아래쪽에 어두운 옆면을 깔고, 윗면 가장자리에 밝은(위·왼쪽)/어두운(아래·오른쪽) 경사를 그린다
 function pieceSVG(cells,color,c){
   const {w,h}=dims(cells), set=new Set(cells.map(p=>p.join(',')));
-  let rects='', edges='';
+  const d=Math.max(2,Math.round(c*.09)), bw=Math.max(2,c*.09);
+  let side='', rects='', edges='', sideEdges='', hi='', lo='';
   cells.forEach(([x,y])=>{
-    rects+=`<rect x="${x*c}" y="${y*c}" width="${c}" height="${c}" fill="${color}"/>`;
-    rects+=`<rect x="${x*c+c*.18}" y="${y*c+c*.18}" width="${c*.64}" height="${c*.64}" rx="${c*.12}" fill="#fff" opacity=".13"/>`;
     const L=x*c,T=y*c,R=L+c,B=T+c;
-    if(!set.has(`${x},${y-1}`)) edges+=`M${L} ${T}H${R}`;
-    if(!set.has(`${x},${y+1}`)) edges+=`M${L} ${B}H${R}`;
-    if(!set.has(`${x-1},${y}`)) edges+=`M${L} ${T}V${B}`;
-    if(!set.has(`${x+1},${y}`)) edges+=`M${R} ${T}V${B}`;
+    side+=`<rect x="${L}" y="${T+d}" width="${c}" height="${c}" fill="${shade(color,-.38)}"/>`;
+    rects+=`<rect x="${L}" y="${T}" width="${c}" height="${c}" fill="${color}"/>`;
+    rects+=`<rect x="${L+c*.2}" y="${T+c*.2}" width="${c*.6}" height="${c*.6}" rx="${c*.12}" fill="#fff" opacity=".12"/>`;
+    const up=!set.has(`${x},${y-1}`), dn=!set.has(`${x},${y+1}`), lf=!set.has(`${x-1},${y}`), rt=!set.has(`${x+1},${y}`);
+    if(up){ edges+=`M${L} ${T}H${R}`; hi+=`M${L} ${T+bw/2}H${R}`; }
+    if(lf){ edges+=`M${L} ${T}V${B}`; hi+=`M${L+bw/2} ${T}V${B}`; }
+    if(dn){ edges+=`M${L} ${B}H${R}`; lo+=`M${L} ${B-bw/2}H${R}`; sideEdges+=`M${L} ${B+d}H${R}`; }
+    if(rt){ edges+=`M${R} ${T}V${B}`; lo+=`M${R-bw/2} ${T}V${B}`; }
+    if(lf) sideEdges+=`M${L} ${T+d}V${B+d}`;
+    if(rt) sideEdges+=`M${R} ${T+d}V${B+d}`;
   });
-  return `<svg width="${w*c}" height="${h*c}" viewBox="0 0 ${w*c} ${h*c}">${rects}<path d="${edges}" stroke="rgba(40,15,5,.75)" stroke-width="2.4" stroke-linecap="square" fill="none"/></svg>`;
+  const sw=2.4;
+  return `<svg width="${w*c}" height="${h*c}" viewBox="0 0 ${w*c} ${h*c}">`
+    + side + `<path d="${sideEdges}" stroke="rgba(40,15,5,.8)" stroke-width="${sw}" stroke-linecap="square" fill="none"/>`
+    + rects
+    + `<path d="${lo}" stroke="rgba(0,0,0,.22)" stroke-width="${bw}" fill="none"/>`
+    + `<path d="${hi}" stroke="rgba(255,255,255,.38)" stroke-width="${bw}" fill="none"/>`
+    + `<path d="${edges}" stroke="rgba(40,15,5,.75)" stroke-width="${sw}" stroke-linecap="square" fill="none"/></svg>`;
 }
 function boardSVG(cells,c){
   const set=new Set(cells.map(p=>p.join(',')));
@@ -881,6 +1023,7 @@ function transformPiece(p,kind){
   if(kind.startsWith('rot')) SFX.rot(); else SFX.flip();
   // 드래그 중(흔들기)에는 SVG를 다시 그리지 않는다.
   // 손가락 아래 요소가 바뀌면 모바일에서 터치가 끊겨 조각이 멈추기 때문 → 화면은 CSS 반전으로만 보여주고 손을 뗄 때 다시 그림
+  const flip3d = !kind.startsWith('rot') && FX3D.flip(p,old,kind);
   if(p.dragging){
     p.cells=nc; p.vis=p.vis||{sx:1,sy:1};
     if(kind==='flip') p.vis.sx*=-1; else if(kind==='flipv') p.vis.sy*=-1;
@@ -906,6 +1049,7 @@ function transformPiece(p,kind){
     }
   } else p.cells=nc;
   renderPiece(p);
+  if(flip3d) gsap.set(p.inner,{rotation:0,scaleX:1,scaleY:1}); else
   gsap.fromTo(p.inner,{...T.from,transformOrigin:'50% 50%'},{rotation:0,scaleX:p.dragging?1.06:1,scaleY:p.dragging?1.06:1,duration:.22,ease:'back.out(1.6)'});
   if(stayed){ const g=p.placed||p.floating; gsap.killTweensOf(p.el,'x,y'); gsap.set(p.el,{x:G.boardX+g.gx*G.cell,y:G.boardY+g.gy*G.cell}); checkSolved(); }
   layoutTray(true);
@@ -963,6 +1107,7 @@ function checkSolved(){
   G.busy=true;
   const t=performance.now()-G.puzzleStart; G.splits.push({t,pass:false}); G.solved++;
   SFX.win(); shout('우봉고!');
+  FX3D.celebrate(G.pieces);
   if(window.confetti) confetti({particleCount:70,spread:70,origin:{y:.4},colors:['#f39a2b','#e15236','#decc28','#2da2e2','#349b57','#fff6e0']});
   gsap.to('#board .tablet',{boxShadow:'0 8px 0 #2e1407,0 0 40px #ffd27a',duration:.2,yoyo:true,repeat:1});
   updateHud();
@@ -970,6 +1115,7 @@ function checkSolved(){
   setTimeout(()=>{ if(G.running) outroThen(newPuzzle); },850);
 }
 function outroThen(fn){
+  FX3D.stopAll();
   gsap.to(['#board',...G.pieces.map(p=>p.el)],{opacity:0,y:'-=20',duration:.2,onComplete:()=>{
     gsap.set(['#board',...G.pieces.map(p=>p.el)],{opacity:1}); gsap.set('#board',{y:0}); fn(); }});
 }
